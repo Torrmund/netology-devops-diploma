@@ -1,0 +1,10 @@
+controller:
+  replicaCount: 2
+  service:
+    enabled: true
+    type: LoadBalancer
+    annotations:
+      service.beta.kubernetes.io/yandex-cloud-load-balancer-ip-version: ipv4
+  
+  nodeSelector:
+    kubernetes.io/os: linux
