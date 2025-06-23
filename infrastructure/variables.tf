@@ -12,9 +12,15 @@ variable "folder_id" {
   description = "https://cloud.yandex.ru/docs/resource-manager/operations/folder/get-id"
 }
 
-variable "vms_ssh_key" {
+variable "vms_ssh_public_key" {
   type = string
   description = "Default ssh public key, that will be store on remote machine"
+}
+
+variable "ssh_private_key_filepath" {
+  type = string
+  description = "Path to the private SSH key for accessing VMs"
+  default = "~/.ssh/id_ed25519"
 }
 
 variable "service_account_key_filepath" {
@@ -334,4 +340,55 @@ variable "postgresql_password" {
   description = "Password for PostgreSQL"
   default = "demo_password"
   sensitive = true
+}
+
+#----------------------------------------------------------------
+# Переменные для Jenkins
+#----------------------------------------------------------------
+variable "jenkins_vm_metadata" {
+  description = "Metadata for Jenkins VM"
+  type = object({
+    name = string
+    zone = string
+    platform_id = string
+    hostname = optional(string, null) # Optional field for hostname
+    cores = number
+    memory = number
+    core_fraction = number
+    disk_size = number
+    subnet_index = string
+    nat = bool
+    preemptible = bool
+    os_family = string
+  })
+  default = {
+    name = "jenkins"
+    zone = "ru-central1-a"
+    platform_id = "standard-v2"
+    hostname = "jenkins"
+    cores = 2
+    memory = 4
+    core_fraction = 100
+    disk_size = 30
+    subnet_index = "infra-ru-central1-a"
+    nat = true
+    preemptible = true
+    os_family = "ubuntu-2204-lts"
+  }
+}
+
+variable "jenkins_install_metadata" {
+  description = "values for Jenkins installation"
+  type = object({
+    ansible_user = string
+    jenkins_version = string
+    terraform_version = string
+    helm_version = string
+  })
+  default = {
+    ansible_user = "ubuntu"
+    jenkins_version = "2.504.2"
+    terraform_version = "1.11.3"
+    helm_version = "3.17.3"
+  }
 }

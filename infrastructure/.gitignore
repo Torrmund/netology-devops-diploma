@@ -14,3 +14,4 @@ personal.auto.tfvars
 # Generated credentials
 .aws/
 .yc/
+.kube/

@@ -1,4 +1,5 @@
 resource "kubernetes_namespace" "demo_app_namespace" {
+  depends_on = [ null_resource.get_kube_config ]
   metadata {
     name = var.demo_app_namespace
   }

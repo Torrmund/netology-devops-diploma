@@ -1,0 +1,140 @@
+---
+- name: Установка Jenkins и инструментов
+  hosts: jenkins_servers
+  become: yes
+
+  tasks:
+    - name: Обновление пакетного кэша
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Установка зависимостей
+      apt:
+        name:
+          - openjdk-21-jdk
+          - git
+          - curl
+          - wget
+          - gnupg
+          - dirmngr
+          - unzip
+        state: present
+
+    
+    - name: Скачивание GPG-ключа Jenkins
+      apt_key:
+        url: https://pkg.jenkins.io/debian/jenkins.io.key
+        state: present
+
+    - name: Добавление репозитория Jenkins
+      apt_repository:
+        repo: 'deb http://pkg.jenkins.io/debian-stable binary/'
+        filename: jenkins
+        state: present
+        update_cache: yes
+
+    - name: Установка Jenkins определенной версии
+      apt:
+        name: "jenkins={{ jenkins_version }}"
+        state: present
+        allow_downgrade: yes
+
+    - name: Настройка Jenkins для работы на порту 80
+      lineinfile:
+        dest: /etc/default/jenkins
+        regexp: 'HTTP_PORT='
+        line: 'HTTP_PORT=80'
+
+    - name: Перезапуск Jenkins после изменения порта
+      service:
+        name: jenkins
+        state: restarted
+
+    - name: Проверка наличия initialAdminPassword
+      stat:
+        path: /var/lib/jenkins/secrets/initialAdminPassword
+      register: password_file
+      changed_when: false
+
+    - name: Чтение начального пароля Jenkins
+      command: sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+      register: initial_password
+      changed_when: false
+      when: password_file.stat.exists
+
+    - name: Сообщение о том, что Jenkins уже инициализирован
+      debug:
+        msg: "Jenkins уже инициализирован. Начальный пароль не будет прочитан."
+      when: not password_file.stat.exists
+
+    - name: Вывод начального пароля Jenkins
+      debug:
+        msg: "Пароль инициации Jenkins: {{ initial_password.stdout }}"
+      when: password_file.stat.exists
+
+    - name: Установка Terraform
+      get_url:
+        url: "https://hashicorp-releases.yandexcloud.net/terraform/{{  terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
+        dest: "/tmp/terraform.zip"
+      when: not ansible_facts.packages['terraform'] is defined
+
+    - name: Распаковка Terraform
+      unarchive:
+        src: "/tmp/terraform.zip"
+        dest: "/usr/local/bin"
+        mode: '0755'
+        owner: root
+        group: root
+      remote_src: yes
+      when: not ansible_facts.packages['terraform'] is defined
+
+    - name: Проверка установки Terraform
+      command: terraform --version
+      register: terraform_output
+      changed_when: false
+
+    - name: Отладочная информация | Версия Terraform
+      debug:
+        msg: "{{ terraform_output.stdout }}"
+
+    - name: Установка kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/v{{  kubernetes_version }}/bin/linux/amd64/kubectl"
+        dest: "/usr/local/bin/kubectl"
+        mode: '0755'
+
+    - name: Проверка установки kubectl
+      command: kubectl version --client
+      register: kubectl_output
+      changed_when: false
+
+    - name: Отладочная информация | Версия kubectl
+      debug:
+        msg: "{{ kubectl_output.stdout }}"
+
+    - name: Установка Helm
+      get_url:
+        url: "https://get.helm.sh/helm-{{  helm_version }}-linux-amd64.tar.gz"
+        dest: "/tmp/helm.tar.gz"
+
+    - name: Распаковка Helm
+      unarchive:
+        src: "/tmp/helm.tar.gz"
+        dest: "/tmp/helm"
+        remote_src: yes
+
+    - name: Копирование Helm в /usr/local/bin
+      copy:
+        src: "/tmp/helm/linux-amd64/helm"
+        dest: "/usr/local/bin/helm"
+        mode: '0755'
+
+    - name: Проверка установки Helm
+      command: helm version
+      register: helm_output
+      changed_when: false
+
+    - name: Отладочная информация | Версия Helm
+      debug:
+        msg: "{{ helm_output.stdout }}"

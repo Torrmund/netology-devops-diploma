@@ -30,7 +30,7 @@ resource "yandex_iam_service_account_key" "infrastructure_sa_key" {
 resource "null_resource" "infrastructure_sa_key" {
   depends_on = [ yandex_resourcemanager_folder_iam_member.infrastructure_sa_roles ]
   provisioner "local-exec" {
-    command = "yc iam key create --folder-id ${var.folder_id} --service-account-name ${yandex_iam_service_account.infrastructure_sa.name} --output ${var.infrastructure_sa_authorized_key_path}"
+    command = "yc iam key create --folder-id ${var.folder_id} --service-account-id ${yandex_iam_service_account.infrastructure_sa.id} --output ${var.infrastructure_sa_authorized_key_path}"
   }
 }
 

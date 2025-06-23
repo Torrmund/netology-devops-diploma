@@ -14,7 +14,7 @@ terraform {
 
     endpoints = {
       s3 = "https://storage.yandexcloud.net"
-      dynamodb = "https://docapi.serverless.yandexcloud.net/ru-central1/b1gmlu2hfoi2rdhigrb4/etn033f1khoo98uu1qbl"
+      dynamodb = "https://docapi.serverless.yandexcloud.net/ru-central1/b1gmlu2hfoi2rdhigrb4/etnpnn1jqks3m35q0hhe"
     }
   }
 

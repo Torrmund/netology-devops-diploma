@@ -78,7 +78,7 @@ k8s_node_group_params = {
     }
 }
 
-kube_config = "~/.kube/config"
+kube_config = "./.kube/kube_config"
 
 ingress_metadata = {
   name = "ingress-nginx"
@@ -114,3 +114,25 @@ postgresql_metadata = {
 }
 
 demo_app_namespace = "notes-app"
+
+jenkins_vm_metadata = {
+  name = "jenkins"
+  zone = "ru-central1-a"
+  platform_id = "standard-v2"
+  hostname = "jenkins"
+  cores = 4
+  memory = 4
+  core_fraction = 100
+  disk_size = 30
+  subnet_index = "infra-ru-central1-a"
+  nat = true
+  preemptible = true
+  os_family = "ubuntu-2204-lts"
+}
+
+jenkins_install_metadata = {
+  ansible_user = "ubuntu"
+  jenkins_version = "2.504.2"
+  terraform_version = "1.11.3"
+  helm_version = "3.17.3"
+}

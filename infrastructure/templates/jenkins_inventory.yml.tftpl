@@ -1,0 +1,15 @@
+jenkins_servers:
+  hosts:
+    jenkins:
+      ansible_host: ${jenkins_nat_ip}
+  vars:
+    ansible_user: ${ansible_user}
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    ansible_ssh_private_key_file: ${ansible_ssh_private_key_file}
+    ansible_python_interpreter: /usr/bin/python3
+
+    jenkins_version: "${jenkins_version}"
+    terraform_version: "${terraform_version}"
+    kubernetes_version: "${kubernetes_version}"
+    helm_version: "${helm_version}"
+

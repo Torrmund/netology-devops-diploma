@@ -105,7 +105,7 @@ resource "yandex_kubernetes_node_group" "name" {
     }
 
     metadata = {
-      ssh_keys = "emav:${var.vms_ssh_key}"
+      ssh_keys = "emav:${var.vms_ssh_public_key}"
     }
   }
 
@@ -124,13 +124,18 @@ resource "yandex_kubernetes_node_group" "name" {
     }
 }
 
-# Получаем kubeconfig для локального доступа к кластеру
+# Получаем kubeconfig для локального доступа к кластеру и генерируем kubeconfig для CI/CD
 resource "null_resource" "get_kube_config" {
     depends_on = [yandex_kubernetes_node_group.name]
     
     provisioner "local-exec" {
-        command = "yc config set service-account-key ${var.k8s_resource_manager_sa_key_filepath} && yc managed-kubernetes cluster get-credentials --id ${yandex_kubernetes_cluster.regional_cluster.id} --force --external --format yaml"
         interpreter = ["bash", "-c"]
+        command = <<EOT
+        yc config set service-account-key ${var.k8s_resource_manager_sa_key_filepath} && \ 
+        yc managed-kubernetes cluster get-credentials --id ${yandex_kubernetes_cluster.regional_cluster.id} --force --external --format yaml && \
+        ./generate_kube_config.sh --cluster-name ${yandex_kubernetes_cluster.regional_cluster.name} --cluster-id ${yandex_kubernetes_cluster.regional_cluster.id} && \
+        yc config set service-account-key ${var.service_account_key_filepath}
+        EOT
     }
 }
 

@@ -26,13 +26,11 @@ data "kubernetes_service" "nginx_ingress" {
 }
 
 resource "local_file" "ingress_monitoring_manifest" {
-  content = templatefile("${path.module}/templates/ingress-monitoring.yaml.tftpl", {
-    grafana_domain = var.grafana_metadata.domain
-  })
+  content = local.ingress_monitoring_manifest
   filename = "${path.module}/k8s_manifests/ingress-monitoring.yaml"
 }
 
 resource "kubectl_manifest" "ingress_monitoring" {
   depends_on = [ helm_release.ingress-nginx, helm_release.kube-prometheus-stack ]
-  yaml_body = file("${path.module}/k8s_manifests/ingress-monitoring.yaml")
+  yaml_body = local.ingress_monitoring_manifest
 }
