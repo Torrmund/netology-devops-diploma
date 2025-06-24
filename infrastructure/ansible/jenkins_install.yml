@@ -1,13 +1,47 @@
 ---
 - name: Установка Jenkins и инструментов
-  hosts: jenkins_servers
+  hosts: jenkins_master
   become: yes
+
+  vars:
+    jenkins_unit_file: /lib/systemd/system/jenkins.service
+    jenkins_version: "2.504.2"
+    terraform_version: "1.11.3"
+    kubernetes_version: "1.30.0"
+    helm_version: "3.17.3"
+
+    jenkins_secrets_dir: /var/lib/jenkins/secrets
+    # jenkins_admin_user: ""
+    # jenkins_admin_password: ""
+
+    # ycr_id: ""
+    # registry_sa_key_filepath: ""
+    # infrastructure_sa_key_filepath: ""
+    # infrastructure_sa_credentials_filepath: ""
+    # kubeconfig_filepath: ""
+    # demo_app_helm_values_filepath: "
+
+  handlers:
+    - name: systemd_reload
+      ansible.builtin.systemd:
+        daemon_reload: yes
+      tags:
+        - systemd
+
+    - name: restart_jenkins
+      ansible.builtin.systemd:
+        name: jenkins
+        state: restarted
+      tags:
+        - systemd
 
   tasks:
     - name: Обновление пакетного кэша
       apt:
         update_cache: yes
         cache_valid_time: 3600
+      tags:
+        - setup
 
     - name: Установка зависимостей
       apt:
@@ -19,13 +53,20 @@
           - gnupg
           - dirmngr
           - unzip
+          - apt-transport-https
+          - software-properties-common
         state: present
+      tags:
+        - setup
 
     
     - name: Скачивание GPG-ключа Jenkins
       apt_key:
         url: https://pkg.jenkins.io/debian/jenkins.io.key
         state: present
+      tags:
+        - setup
+        - install_jenkins
 
     - name: Добавление репозитория Jenkins
       apt_repository:
@@ -33,51 +74,86 @@
         filename: jenkins
         state: present
         update_cache: yes
+      tags:
+        - setup
+        - install_jenkins
 
     - name: Установка Jenkins определенной версии
       apt:
         name: "jenkins={{ jenkins_version }}"
         state: present
         allow_downgrade: yes
+      tags:
+        - setup
+        - install_jenkins
 
-    - name: Настройка Jenkins для работы на порту 80
-      lineinfile:
-        dest: /etc/default/jenkins
-        regexp: 'HTTP_PORT='
-        line: 'HTTP_PORT=80'
+    - block:
 
-    - name: Перезапуск Jenkins после изменения порта
-      service:
-        name: jenkins
-        state: restarted
+        - name: Предоставить возможность Jenkins использовать порт ниже 1024
+          ansible.builtin.lineinfile:
+            path: /lib/systemd/system/jenkins.service
+            regexp: '^#AmbientCapabilities=CAP_NET_BIND_SERVICE'
+            line: 'AmbientCapabilities=CAP_NET_BIND_SERVICE'
+            backrefs: no
+            state: present
+          notify: 
+            - systemd_reload
+            - restart_jenkins
+          tags:
+            - systemd
+            - config_jenkins
+          
+
+        - name: Переопределение порта Jenkins
+          ansible.builtin.lineinfile:
+            path: /lib/systemd/system/jenkins.service
+            regexp: '^Environment="JENKINS_PORT=8080"'
+            line: 'Environment="JENKINS_PORT=80"'
+            backrefs: no
+            state: present
+          notify: 
+            - systemd_reload
+            - restart_jenkins
+          tags:
+            - systemd
+            - config_jenkins
 
     - name: Проверка наличия initialAdminPassword
       stat:
         path: /var/lib/jenkins/secrets/initialAdminPassword
       register: password_file
       changed_when: false
+      tags:
+        - info
 
-    - name: Чтение начального пароля Jenkins
+    - name: Чтение пароля инициализации Jenkins
       command: sudo cat /var/lib/jenkins/secrets/initialAdminPassword
       register: initial_password
       changed_when: false
       when: password_file.stat.exists
+      tags:
+        - info
 
     - name: Сообщение о том, что Jenkins уже инициализирован
       debug:
-        msg: "Jenkins уже инициализирован. Начальный пароль не будет прочитан."
+        msg: "Jenkins уже инициализирован."
       when: not password_file.stat.exists
+      tags:
+        - info
 
     - name: Вывод начального пароля Jenkins
       debug:
         msg: "Пароль инициации Jenkins: {{ initial_password.stdout }}"
       when: password_file.stat.exists
+      tags:
+        - info
 
-    - name: Установка Terraform
+    - name: Скачивание Terraform
       get_url:
         url: "https://hashicorp-releases.yandexcloud.net/terraform/{{  terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
         dest: "/tmp/terraform.zip"
-      when: not ansible_facts.packages['terraform'] is defined
+      tags:
+        - install_terraform
 
     - name: Распаковка Terraform
       unarchive:
@@ -86,55 +162,178 @@
         mode: '0755'
         owner: root
         group: root
-      remote_src: yes
-      when: not ansible_facts.packages['terraform'] is defined
+        remote_src: yes
+      tags:
+        - install_terraform
 
     - name: Проверка установки Terraform
       command: terraform --version
       register: terraform_output
       changed_when: false
+      tags:
+        - install_terraform
+        - info
 
     - name: Отладочная информация | Версия Terraform
       debug:
         msg: "{{ terraform_output.stdout }}"
+      tags:
+        - install_terraform
+        - info
 
-    - name: Установка kubectl
+    - name: Скачивание kubectl
       get_url:
         url: "https://dl.k8s.io/release/v{{  kubernetes_version }}/bin/linux/amd64/kubectl"
         dest: "/usr/local/bin/kubectl"
         mode: '0755'
+      tags:
+        - install_kubectl
 
     - name: Проверка установки kubectl
       command: kubectl version --client
       register: kubectl_output
       changed_when: false
+      tags:
+        - install_kubectl
+        - info
 
     - name: Отладочная информация | Версия kubectl
       debug:
         msg: "{{ kubectl_output.stdout }}"
+      tags:
+        - install_kubectl
+        - info
 
-    - name: Установка Helm
+    - name: Скачивание Helm
       get_url:
-        url: "https://get.helm.sh/helm-{{  helm_version }}-linux-amd64.tar.gz"
+        url: "https://get.helm.sh/helm-v{{  helm_version }}-linux-amd64.tar.gz"
         dest: "/tmp/helm.tar.gz"
+      tags:
+        - install_helm
 
     - name: Распаковка Helm
       unarchive:
         src: "/tmp/helm.tar.gz"
-        dest: "/tmp/helm"
+        dest: "/tmp/"
+        mode: '0755'
+        owner: root
+        group: root
         remote_src: yes
+      tags:
+        - install_helm
 
     - name: Копирование Helm в /usr/local/bin
       copy:
-        src: "/tmp/helm/linux-amd64/helm"
+        src: "/tmp/linux-amd64/helm"
         dest: "/usr/local/bin/helm"
         mode: '0755'
+        remote_src: yes
+      tags:
+        - install_helm
 
     - name: Проверка установки Helm
       command: helm version
       register: helm_output
       changed_when: false
+      tags:
+        - install_helm
+        - info
 
     - name: Отладочная информация | Версия Helm
       debug:
         msg: "{{ helm_output.stdout }}"
+      tags:
+        - install_helm
+        - info
+
+    - name: Скачивание инсталляционного скрипта YC CLI
+      get_url:
+        url: "https://storage.yandexcloud.net/yandexcloud-yc/install.sh"
+        dest: "/tmp/install_yc.sh"
+        mode: '0755'
+      tags:
+        - install_yc_cli
+
+    - name: Установка YC CLI
+      shell: | 
+        bash /tmp/install_yc.sh -i /usr/local -n
+      args:
+        creates: /usr/local/bin/yc
+      tags:
+        - install_yc_cli
+
+    - name: Проверка установки YC CLI
+      command: yc --version
+      register: yc_cli_output
+      changed_when: false
+      tags:
+        - install_yc_cli
+        - info
+
+    - name: Отладочная информация | Версия YC CLI
+      debug:
+        msg: "{{ yc_cli_output.stdout }}"
+      tags:
+        - install_yc_cli
+        - info
+
+    - name: Добавление GPG-ключа Docker
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      tags:
+        - install_docker
+
+    - name: Добавление репозитория Docker
+      apt_repository:
+        repo: 'deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable'
+        state: present
+        update_cache: yes
+      tags:
+        - install_docker
+
+    - name: Установка Docker CE
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+      tags:
+        - install_docker
+
+    - name: Проверка, существует ли пользователь jenkins
+      getent:
+        database: passwd
+        key: jenkins
+      register: getend_passwd
+      changed_when: false
+      tags:
+        - install_docker
+
+    - name: Добавление пользователя Jenkins в группу Docker
+      user:
+        name: jenkins
+        groups: 
+          - docker
+        append: yes
+      notify: restart_jenkins
+      when: getend_passwd.getend is not none
+      tags:
+        - install_docker
+
+    - name: Копирование ключей сервисных аккаунтов и kubeconfig
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: jenkins
+        group: jenkins
+        mode: '0600'
+      loop:
+        - { src: '.{{ registry_sa_key_filepath }}', dest: '{{ jenkins_secrets_dir }}/registry_sa_key.json' }
+        - { src: '.{{ infrastructure_sa_key_filepath }}', dest: '{{ jenkins_secrets_dir }}/infrastructure_sa_key.json' }
+        - { src: '.{{ infrastructure_sa_credentials_filepath }}', dest: '{{ jenkins_secrets_dir }}/infrastructure_sa_credentials' }
+        - { src: '.{{ kubeconfig_filepath }}', dest: '{{ jenkins_secrets_dir }}/kube_config' }
+        - { src: '.{{ demo_app_helm_values_filepath }}', dest: '{{ jenkins_secrets_dir }}/notes_app_values.yaml' }
+      tags:
+        - copy_secrets

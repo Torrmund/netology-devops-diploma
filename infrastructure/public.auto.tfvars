@@ -14,9 +14,9 @@ registry_params = {
     "team" = "devops"
   }
 }
-repository_name = ["demo-app"]
+repository_name = ["notes-app"]
 registry_sa_name = "registry-sa"
-registry_sa_key_filepath = "./.yc/registry_sa_credentials"
+registry_sa_key_filepath = "./.yc/registry_sa_key.json"
 
 dns_zone_params = {
   name = "infrastructure-dns-zone"
@@ -104,16 +104,18 @@ grafana_metadata = {
 
 postgresql_metadata = {
   name = "postgresql"
-    repository = "https://charts.bitnami.com/bitnami"
-    chart = "postgresql"
-    version = "16.7.11"
-    database = "notes-app"
-    existing_secret = ""
-    primary_persistence_enabled = true
-    primary_persistence_size = "5Gi"
+  repository = "https://charts.bitnami.com/bitnami"
+  chart = "postgresql"
+  version = "16.7.11"
+  database = "notes-app"
+  existing_secret = ""
+  primary_persistence_enabled = true
+  primary_persistence_size = "5Gi"
 }
 
 demo_app_namespace = "notes-app"
+
+demo_app_domain = "notes.torrmund.xyz"
 
 jenkins_vm_metadata = {
   name = "jenkins"

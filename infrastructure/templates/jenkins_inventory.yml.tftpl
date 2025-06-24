@@ -1,4 +1,4 @@
-jenkins_servers:
+jenkins_master:
   hosts:
     jenkins:
       ansible_host: ${jenkins_nat_ip}
@@ -10,6 +10,12 @@ jenkins_servers:
 
     jenkins_version: "${jenkins_version}"
     terraform_version: "${terraform_version}"
-    kubernetes_version: "${kubernetes_version}"
+    kubernetes_version: "${kubernetes_version}.0"
     helm_version: "${helm_version}"
 
+    ycr_id: "${ycr_id}"
+    registry_sa_key_filepath: "${registry_sa_key_filepath}"
+    infrastructure_sa_key_filepath: "${infrastructure_sa_key_filepath}"
+    infrastructure_sa_credentials_filepath: "${infrastructure_sa_credentials_filepath}"
+    kubeconfig_filepath: "${kubeconfig_filepath}"
+    demo_app_helm_values_filepath: "${demo_app_helm_values_filepath}"

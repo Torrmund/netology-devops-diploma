@@ -1,0 +1,13 @@
+namespase: ${demo_app_namespace}
+
+replicaCount: ${demo_app_replica_count}
+
+image:
+  repository: cr.yandex/${registry_id}/notes-app
+
+ingress:
+  host: ${demo_app_domain}
+
+database:
+  host: ${database_host}
+  name: ${database_name}

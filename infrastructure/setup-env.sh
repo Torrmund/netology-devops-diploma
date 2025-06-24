@@ -2,13 +2,14 @@
 
 # Функция отображения справки
 usage() {
-    echo "Использование: $0 -c <credentials_file> -k <authorized_key.json> -C <cloud_id> -f <folder_id>"
+    echo "Использование: $0 -c <credentials_file> -k <authorized_key.json> -C <cloud_id> -f <folder_id> -K <kubeconfig_filepath>"
     echo ""
     echo "Опции:"
     echo "  -c, --credentials PATH      Путь к файлу aws-типизированных кредов SA (по умолчанию: ./.yc/infrastructure_sa_credentials)"
     echo "  -k, --keyfile PATH          Путь к файлу статического ключа SA (по умолчанию: ./.yc/infrastructure_sa_key.json)"
     echo "  -C, --cloud-id VALUE        Значение переменной cloud_id для Terraform"
     echo "  -f, --folder-id VALUE       Значение переменной folder_id для Terraform"
+    echo "  -K, --kubeconfig-file PATH  Путь к файлу kubeconfig (по умолчанию: ./.kube/kube_config)"
     echo "  -h, --help                  Показать эту справку"
     exit 1
 }
@@ -16,6 +17,7 @@ usage() {
 # Установка значений по умолчанию
 CREDENTIALS_FILE="./.yc/infrastructure_sa_credentials"
 KEYFILE_PATH="./.yc/infrastructure_sa_key.json"
+KUBECONFIG_FILE="./.kube/kube_config"
 
 # Обработка аргументов командной строки
 while [[ "$#" -gt 0 ]]; do
@@ -24,6 +26,7 @@ while [[ "$#" -gt 0 ]]; do
         -k|--keyfile) KEYFILE_PATH="$2"; shift ;;
         -C|--cloud-id) TF_VAR_cloud_id="$2"; shift ;;
         -f|--folder-id) TF_VAR_folder_id="$2"; shift ;;
+        -K|--kubeconfig-file) KUBECONFIG_FILE="$2"; shift ;;
         -h|--help) usage ;;
         *) echo "Неизвестный параметр: $1"; usage ;;
     esac
@@ -48,6 +51,11 @@ if [ ! -f "${KEYFILE_PATH}" ]; then
     exit 1
 fi
 
+# Проверка существования фалйа kubeconfig
+if [ ! -f "${KUBECONFIG_FILE}" ]; then
+    echo "ВНИМАНИЕ: Файл ${KUBECONFIG_FILE} не найден."
+fi
+
 # Извлечение AWS_ACCESS_KEY_ID и AWS_SECRET_ACCESS_KEY из файла credentials
 AWS_SECTION=$(grep -A2 '\[default\]' "${CREDENTIALS_FILE}" 2>/dev/null)
 if [ -z "${AWS_SECTION}" ]; then
@@ -64,6 +72,7 @@ export TF_VAR_service_account_key_filepath="${KEYFILE_PATH}"
 # Экспорт переменных для Terraform
 export TF_VAR_cloud_id="${TF_VAR_cloud_id}"
 export TF_VAR_folder_id="${TF_VAR_folder_id}"
+export TF_VAR_kube_config="${KUBECONFIG_FILE}"
 
 # Установка конфигурации Yandex Cloud CLI
 yc config set cloud-id "${TF_VAR_cloud_id}"

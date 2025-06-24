@@ -39,16 +39,22 @@ resource "local_file" "jenkins_inventory" {
     terraform_version = var.jenkins_install_metadata.terraform_version
     kubernetes_version = var.k8s_cluster_metadata.version
     helm_version = var.jenkins_install_metadata.helm_version
+    ycr_id = yandex_container_registry.infrastructure_registry.id
+    registry_sa_key_filepath = var.registry_sa_key_filepath
+    infrastructure_sa_key_filepath = var.service_account_key_filepath
+    infrastructure_sa_credentials_filepath = var.service_account_credentials_filepath
+    kubeconfig_filepath = var.kube_config
+    demo_app_helm_values_filepath = var.notes_app_helm_values_filepath
     })
 
     filename = "${path.module}/ansible/inventory/jenkins_inventory.yml"
 }
 
-# resource "null_resource" "install_jenkins" {
-#   depends_on = [yandex_compute_instance.jenkins, local_file.jenkins_inventory]
+resource "null_resource" "install_jenkins" {
+  depends_on = [yandex_compute_instance.jenkins, local_file.jenkins_inventory, null_resource.get_kube_config]
 
-#   provisioner "local-exec" {
-#     command = "ansible-playbook -i ${local_file.jenkins_inventory.filename} ansible/jenkins_install.yml -vv"
-#     interpreter = ["bash", "-c"]
-#   }
-# }
+  provisioner "local-exec" {
+    command = "ansible-playbook -i ${local_file.jenkins_inventory.filename} ansible/jenkins_install.yml -vv"
+    interpreter = ["bash", "-c"]
+  }
+}

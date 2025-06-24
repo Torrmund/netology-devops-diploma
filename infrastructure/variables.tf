@@ -23,6 +23,12 @@ variable "ssh_private_key_filepath" {
   default = "~/.ssh/id_ed25519"
 }
 
+variable "service_account_credentials_filepath" {
+  type = string
+  description = "Path to the file with credentials for the infrastructure service account"
+  default = "./.yc/infrastructure_sa_credentials"
+}
+
 variable "service_account_key_filepath" {
   type = string
   default = "./.yc/infrastructure_sa_key.json"
@@ -85,7 +91,7 @@ variable "registry_sa_name" {
 variable "registry_sa_key_filepath" {
   type = string
   description = "Filepath for the static access key of the service account for container registry"
-  default = "./.yc/registry_sa_credentials"
+  default = "./.yc/registry_sa_key.json"
 }
 
 #----------------------------------------------------------------
@@ -124,7 +130,7 @@ variable "k8s_resource_manager_sa_params" {
 variable "k8s_resource_manager_sa_key_filepath" {
   description = "Filepath for the static access key of the Kubernetes resource manager service account"
   type = string
-  default = "./.yc/k8s__sa_key.json"
+  default = "./.yc/k8s_sa_key.json"
 }
 
 variable "hosts_sa_params" {
@@ -278,6 +284,12 @@ variable "monitoring_metadata" {
   }
 }
 
+variable "notes_app_helm_values_filepath" {
+  type = string
+  description = "Path to the Helm values file for the demo application"
+  default = "./helm_values/notes_app.yaml"
+}
+
 #----------------------------------------------------------------
 # Переменные для Grafana
 #----------------------------------------------------------------
@@ -326,6 +338,18 @@ variable "demo_app_namespace" {
   type = string
   description = "Namespace for the demo application in Kubernetes"
   default = "demo-app"
+}
+
+variable "demo_app_domain" {
+  type = string
+  description = "Domain for the demo application"
+  default = "demo-app.example.com"
+}
+
+variable "demo_app_replica_count" {
+  type = number
+  description = "Number of replicas for the demo application"
+  default = 3
 }
 
 variable "postgresql_username" {

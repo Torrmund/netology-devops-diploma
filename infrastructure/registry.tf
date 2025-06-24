@@ -31,18 +31,12 @@ resource "yandex_container_registry_iam_binding" "pusher_binding" {
   ]
 }
 
-resource "yandex_iam_service_account_static_access_key" "registry_sa_static_key" {
-  service_account_id = yandex_iam_service_account.registry_sa.id
-  description        = "Static access key for container registry operations"
-}
-
-resource "local_sensitive_file" "registry_sa_key" {
-  filename = var.registry_sa_key_filepath
-  file_permission = 600
-
-  content = <<EOF
-[default]
-aws_access_key_id = ${yandex_iam_service_account_static_access_key.registry_sa_static_key.access_key}
-aws_secret_access_key = ${yandex_iam_service_account_static_access_key.registry_sa_static_key.secret_key}
-EOF
+resource "null_resource" "registry_sa_key" {
+  depends_on = [ yandex_iam_service_account.registry_sa, 
+                  yandex_container_registry_iam_binding.puller_binding, 
+                  yandex_container_registry_iam_binding.pusher_binding,
+                  yandex_container_repository.demo_app_repository ]
+  provisioner "local-exec" {
+    command = "yc iam key create --folder-id ${var.folder_id} --service-account-id ${yandex_iam_service_account.registry_sa.id} --output ${var.registry_sa_key_filepath}"
+  }
 }
