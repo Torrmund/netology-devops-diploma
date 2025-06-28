@@ -22,10 +22,10 @@ resource "yandex_dns_recordset" "notes-app" {
   data = [ data.kubernetes_service.nginx_ingress.status[0].load_balancer.0.ingress.0.ip ]
 }
 
-resource "yandex_dns_recordset" "jenkins" {
+resource "yandex_dns_recordset" "teamcity" {
   zone_id = yandex_dns_zone.infrastructure_dns_zone.id
-  name = "jenkins"
+  name = "teamcity"
   type = "A"
   ttl = 300
-  data = [ yandex_compute_instance.jenkins.network_interface[0].nat_ip_address ]
+  data = [ yandex_compute_instance.teamcity_master.network_interface[0].nat_ip_address ]
 }

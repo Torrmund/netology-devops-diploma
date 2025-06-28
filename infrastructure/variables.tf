@@ -367,15 +367,15 @@ variable "postgresql_password" {
 }
 
 #----------------------------------------------------------------
-# Переменные для Jenkins
+# Переменные для TeamCity
 #----------------------------------------------------------------
-variable "jenkins_vm_metadata" {
-  description = "Metadata for Jenkins VM"
+variable "teamcity_master_vm_metadata" {
+  description = "Metadata for Teamcity master VM"
   type = object({
     name = string
     zone = string
     platform_id = string
-    hostname = optional(string, null) # Optional field for hostname
+    hostname = string
     cores = number
     memory = number
     core_fraction = number
@@ -386,10 +386,10 @@ variable "jenkins_vm_metadata" {
     os_family = string
   })
   default = {
-    name = "jenkins"
+    name = "teamcity-master"
     zone = "ru-central1-a"
     platform_id = "standard-v2"
-    hostname = "jenkins"
+    hostname = "teamcity-master"
     cores = 2
     memory = 4
     core_fraction = 100
@@ -401,18 +401,58 @@ variable "jenkins_vm_metadata" {
   }
 }
 
-variable "jenkins_install_metadata" {
+variable "teamcity_agents_vm_metadata" {
+  description = "Metadata for TeamCity agents VMs"
+  type = object({
+    count = number
+    name = string
+    zone = string
+    platform_id = string
+    hostname = string
+    cores = number
+    memory = number
+    core_fraction = number
+    disk_size = number
+    subnet_index = string
+    nat = bool
+    preemptible = bool
+  })
+  default = {
+    count = 1
+    name = "teamcity-agent"
+    zone = "ru-central1-a"
+    platform_id = "standard-v2"
+    hostname = "teamcity-agent"
+    cores = 2
+    memory = 4
+    core_fraction = 100
+    disk_size = 30
+    subnet_index = "infra-ru-central1-a"
+    nat = true
+    preemptible = true
+  }
+}
+
+variable "teamcity_install_metadata" {
   description = "values for Jenkins installation"
   type = object({
     ansible_user = string
-    jenkins_version = string
     terraform_version = string
     helm_version = string
   })
   default = {
     ansible_user = "ubuntu"
-    jenkins_version = "2.504.2"
     terraform_version = "1.11.3"
     helm_version = "3.17.3"
   }
+}
+
+variable "teamcity_distro_filepath" {
+  description = "Path to TeamCity distro archive (to copy on TeamCity master VM)"
+  type = string
+}
+
+variable "teamcity_master_domain" {
+  type = string
+  default = "teamcity.example.com"
 }

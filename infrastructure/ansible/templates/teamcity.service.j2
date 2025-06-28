@@ -1,0 +1,14 @@
+[Unit]
+Description=TeamCity CI Server
+After=syslog.target network.target
+
+[Service]
+User=teamcity
+WorkingDirectory=/opt/TeamCity
+ExecStart=/opt/teamcity/TeamCity/bin/teamcity-server.sh start
+ExecStop=/opt/teamcity/TeamCity/bin/teamcity-server.sh stop
+Environment="TEAMCITY_DATA_PATH=/opt/TeamCity/TeamCityData"
+# Restart=always
+
+[Install]
+WantedBy=multi-user.target

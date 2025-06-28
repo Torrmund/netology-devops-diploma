@@ -1,0 +1,14 @@
+[Unit]
+Description=TeamCity Build Agent
+After=network.target
+
+[Service]
+User=teamcity-agent
+WorkingDirectory=/opt/teamcity-agent
+ExecStart=/opt/teamcity-agent/bin/agent.sh run
+ExecStop=/opt/teamcity-agent/bin/agent.sh stop
+# Restart=always
+Environment="JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64"
+
+[Install]
+WantedBy=multi-user.target

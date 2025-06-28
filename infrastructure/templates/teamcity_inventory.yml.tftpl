@@ -1,0 +1,38 @@
+all:
+  children:
+    teamcity_master:
+      hosts:
+        teamcity-master-vm:
+          ansible_host: ${teamcity_master_nat_ip}
+          ansible_user: ${ansible_user}
+          ansible_ssh_private_key_file: ${ansible_ssh_private_key_file}
+          ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+          ansible_python_interpreter: /usr/bin/python3
+
+      vars:
+        teamcity_distro_filepath: ${teamcity_distro_filepath}
+        teamcity_server_domain: ${teamcity_server_domain}
+
+    teamcity_agents:
+      hosts:
+%{ for i, ip in teamcity_agent_ips ~}
+        teamcity-agent-${i + 1}:
+          ansible_host: ${ip}
+%{ endfor }
+
+      vars:
+        ansible_user: ${ansible_user}
+        ansible_ssh_private_key_file: ${ansible_ssh_private_key_file}
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+        ansible_python_interpreter: /usr/bin/python3
+
+        teamcity_server_domain: ${teamcity_server_domain}
+        terraform_version: ${terraform_version}
+        kubernetes_version: ${kubernetes_version}
+        helm_version: ${helm_version}
+
+        registry_sa_key_filepath: ${registry_sa_key_filepath}
+        infrastructure_sa_key_filepath: ${infrastructure_sa_key_filepath}
+        infrastructure_sa_credentials_filepath: ${infrastructure_sa_credentials_filepath}
+        kubeconfig_filepath: ${kubeconfig_filepath}
+        demo_app_helm_values_filepath: ${demo_app_helm_values_filepath}

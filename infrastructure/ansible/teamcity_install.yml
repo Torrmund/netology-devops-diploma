@@ -1,0 +1,464 @@
+---
+- name: Установка Teamcity Server
+  hosts: teamcity_master
+  become: yes
+
+  vars:
+
+  tasks:
+    - name: "Установка OpenJDK"
+      ansible.builtin.apt:
+        name:
+          - openjdk-21-jdk
+        state: present
+        update_cache: yes
+
+    - name: "Создание группы teamcity"
+      ansible.builtin.group:
+        name: "teamcity"
+        state: present
+        system: yes
+
+    - name: "Создание пользователя teamcity"
+      ansible.builtin.user:
+        name: "teamcity"
+        group: "teamcity"
+        groups:
+          - www-data
+        append: yes
+        state: present
+        shell: /bin/bash
+        create_home: yes
+        system: yes
+        home: /opt/teamcity
+
+    - name: "Копирование архива дистрибутива"
+      ansible.builtin.copy:
+        src: "{{ teamcity_distro_filepath }}"
+        dest: /tmp/teamcity.tar.gz
+        mode: 0644
+
+    - name: "Распаковка архива в домашнюю директорию пользователя teamcity"
+      ansible.builtin.unarchive:
+        src: "/tmp/teamcity.tar.gz"
+        dest: "/opt/teamcity"
+        remote_src: yes
+
+    # - name: "Удаление временного архива"
+    #   ansible.builtin.file:
+    #     path: "/tmp/teamcity.tar.gz"
+    #     state: absent
+
+    - name: "Создание директории для данных"
+      ansible.builtin.file:
+        path: /opt/teamcity/TeamCity/TeamCityData
+        state: directory
+        owner: teamcity
+        group: teamcity
+        mode: 0755
+
+    - name: "Установка прав владельца на TeamCity директорию"
+      ansible.builtin.file:
+        path: "/opt/teamcity"
+        owner: "teamcity"
+        group: "teamcity"
+        recurse: yes
+
+    - name: "Добавление systemd юнита для TeamCity"
+      ansible.builtin.template:
+        src: teamcity.service.j2
+        dest: /etc/systemd/system/teamcity.service
+      notify: reload systemd
+
+    - name: "Обновление информации в systemd"
+      ansible.builtin.systemd:
+        daemon_reload: yes
+      tags:
+        - systemd
+
+    - name: "Запуск сервиса TeamCity"
+      ansible.builtin.service:
+        name: teamcity
+        enabled: yes
+        state: started
+
+    - name: "Установка nginx"
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: "Добавление конфига Nginx для TeamCity"
+      ansible.builtin.template:
+        src: nginx_teamcity.conf.j2
+        dest: /etc/nginx/sites-available/teamcity.conf
+      notify: enable and reload nginx
+
+    - name: "Активация конфига Nginx"
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/teamcity.conf
+        dest: /etc/nginx/sites-enabled/teamcity.conf
+        state: link
+        force: yes
+      notify: restart nginx
+
+    - name: "Отключение дефолтного конфига Nginx"
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: restart nginx
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: enable and reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+        enabled: yes
+
+    - name: restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+
+- name: "Установка агента"
+  hosts: teamcity_agents
+  become: yes
+
+  vars:
+
+  tasks:
+    - name: "Установка необходимых пакетов"
+      ansible.builtin.apt:
+        name:
+          - openjdk-21-jdk
+          - curl
+          - unzip
+        state: present
+        update_cache: yes
+
+    - name: "Создание группы teamcity-agent"
+      ansible.builtin.group:
+        name: "teamcity-agent"
+        state: present
+        system: yes
+
+    - name: "Создание пользователя teamcity-agent"
+      ansible.builtin.user:
+        name: "teamcity-agent"
+        group: "teamcity-agent"
+        groups:
+          - www-data
+        append: yes
+        state: present
+        shell: /bin/bash
+        create_home: yes
+        system: yes
+        home: /opt/teamcity-agent
+
+    - name: "Скачивание дистрибутива агента с мастера"
+      ansible.builtin.get_url:
+        url: "http://{{ teamcity_server_domain }}/update/buildAgent.zip"
+        dest: "/tmp/agent.zip"
+        mode: 0644
+        validate_certs: no
+
+    - name: "Распаковка дистрибутива агента"
+      ansible.builtin.unarchive:
+        src: "/tmp/agent.zip"
+        dest: "/opt/teamcity-agent"
+        remote_src: yes
+
+    # - name: "Удаление временного архива"
+    #   ansible.builtin.file:
+    #     path: "/tmp/agent.zip"
+    #     state: absent
+
+    - name: "Установка прав владельца на директория агента"
+      ansible.builtin.file:
+        path: /opt/teamcity-agent
+        owner: teamcity-agent
+        group: teamcity-agent
+        recurse: yes
+
+    - name: "Добавление конфига buildAgent.properties"
+      ansible.builtin.template:
+        src: buildAgent.properties.j2
+        dest: "/opt/teamcity-agent/conf/buildAgent.properties"
+      notify: reload systemd
+
+    - name: "Добавление юнита systemd для агента"
+      ansible.builtin.template:
+        src: teamcity-agent.service.j2
+        dest: "/etc/systemd/system/teamcity-agent.service"
+      notify: reload systemd
+
+    - name: "Перезагрузка systemd"
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: "Запуск сервиса агента"
+      ansible.builtin.service:
+        name: teamcity-agent
+        enabled: yes
+        state: started
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+- name: "Установка инструментов на агенты и копирование секретов"
+  hosts: teamcity_agents
+  become: yes
+
+  vars:
+    teamcity_agent_secrets_dir: /opt/teamcity-agent/secrets
+
+  tasks:
+    - name: "Установка необходимых пакетов"
+      ansible.builtin.apt:
+        name:
+          - curl
+          - unzip
+        state: present
+        update_cache: yes
+
+    - name: Скачивание Terraform
+      ansible.builtin.get_url:
+        url: "https://hashicorp-releases.yandexcloud.net/terraform/{{  terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
+        dest: "/tmp/terraform.zip"
+      tags:
+        - install_terraform
+
+    - name: Распаковка Terraform
+      ansible.builtin.unarchive:
+        src: "/tmp/terraform.zip"
+        dest: "/usr/local/bin"
+        mode: '0755'
+        owner: root
+        group: root
+        remote_src: yes
+      tags:
+        - install_terraform
+
+    - name: Проверка установки Terraform
+      ansible.builtin.command: terraform --version
+      register: terraform_output
+      changed_when: false
+      tags:
+        - install_terraform
+        - info
+
+    - name: Отладочная информация | Версия Terraform
+      ansible.builtin.debug:
+        msg: "{{ terraform_output.stdout }}"
+      tags:
+        - install_terraform
+        - info
+
+    - name: Скачивание kubectl
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/v{{  kubernetes_version }}.0/bin/linux/amd64/kubectl"
+        dest: "/usr/local/bin/kubectl"
+        mode: '0755'
+      tags:
+        - install_kubectl
+
+    - name: Проверка установки kubectl
+      ansible.builtin.command: kubectl version --client
+      register: kubectl_output
+      changed_when: false
+      tags:
+        - install_kubectl
+        - info
+
+    - name: Отладочная информация | Версия kubectl
+      ansible.builtin.debug:
+        msg: "{{ kubectl_output.stdout }}"
+      tags:
+        - install_kubectl
+        - info
+
+    - name: Скачивание Helm
+      ansible.builtin.get_url:
+        url: "https://get.helm.sh/helm-v{{  helm_version }}-linux-amd64.tar.gz"
+        dest: "/tmp/helm.tar.gz"
+      tags:
+        - install_helm
+
+    - name: Распаковка Helm
+      ansible.builtin.unarchive:
+        src: "/tmp/helm.tar.gz"
+        dest: "/tmp/"
+        mode: '0755'
+        owner: root
+        group: root
+        remote_src: yes
+      tags:
+        - install_helm
+
+    - name: Копирование Helm в /usr/local/bin
+      ansible.builtin.copy:
+        src: "/tmp/linux-amd64/helm"
+        dest: "/usr/local/bin/helm"
+        mode: '0755'
+        remote_src: yes
+      tags:
+        - install_helm
+
+    - name: Проверка установки Helm
+      ansible.builtin.command: helm version
+      register: helm_output
+      changed_when: false
+      tags:
+        - install_helm
+        - info
+
+    - name: Отладочная информация | Версия Helm
+      ansible.builtin.debug:
+        msg: "{{ helm_output.stdout }}"
+      tags:
+        - install_helm
+        - info
+
+    - name: Скачивание инсталляционного скрипта YC CLI
+      ansible.builtin.get_url:
+        url: "https://storage.yandexcloud.net/yandexcloud-yc/install.sh"
+        dest: "/tmp/install_yc.sh"
+        mode: '0755'
+      tags:
+        - install_yc_cli
+
+    - name: Установка YC CLI
+      ansible.builtin.shell: | 
+        bash /tmp/install_yc.sh -i /usr/local -n
+      args:
+        creates: /usr/local/bin/yc
+      tags:
+        - install_yc_cli
+
+    - name: Проверка установки YC CLI
+      ansible.builtin.command: yc --version
+      register: yc_cli_output
+      changed_when: false
+      tags:
+        - install_yc_cli
+        - info
+
+    - name: Отладочная информация | Версия YC CLI
+      ansible.builtin.debug:
+        msg: "{{ yc_cli_output.stdout }}"
+      tags:
+        - install_yc_cli
+        - info
+
+    - name: Добавление GPG-ключа Docker
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      tags:
+        - install_docker
+
+    - name: Добавление репозитория Docker
+      ansible.builtin.apt_repository:
+        repo: 'deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable'
+        state: present
+        update_cache: yes
+      tags:
+        - install_docker
+
+    - name: Установка Docker CE
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+      tags:
+        - install_docker
+
+    - name: Проверка, существует ли пользователь teamcity-agent
+      ansible.builtin.getent:
+        database: passwd
+        key: teamcity-agent
+      register: getend_passwd
+      changed_when: false
+      tags:
+        - install_docker
+
+    - name: Добавление пользователя teamcity-agent в группу Docker
+      ansible.builtin.user:
+        name: teamcity-agent
+        groups: 
+          - docker
+        append: yes
+      notify: restart teamcity-agent
+      when: getend_passwd.getend is not none
+      tags:
+        - install_docker
+
+    - name: Проверка налчия директории .ssh
+      ansible.builtin.file:
+        path: "/opt/teamcity-agent/.ssh"
+        state: directory
+        mode: '0700'
+      tags:
+        - create_agent_ssh_key
+
+    - name: Создание SSH-ключа агента
+      ansible.builtin.shell: |
+        ssh-keygen -t ed25519 -f /opt/teamcity-agent/.ssh/id_ed25519 -N ''
+        chmod 400 "/opt/teamcity-agent/.ssh/id_ed25519"
+      args:
+        creates: "/opt/teamcity-agent/.ssh/id_ed25519"
+      tags:
+        - create_agent_ssh_key
+
+    - name: Получение публичной части ключа
+      ansible.builtin.slurp:
+        src: "/opt/teamcity-agent/.ssh/id_ed25519.pub"
+      register: public_ssh_key
+      tags:
+        - create_agent_ssh_key
+
+    - name: Вывод публичной части ключа
+      ansible.builtin.debug:
+        msg: "TeamCity public ssh-key:\n{{ public_ssh_key.content | b64decode }}"
+      tags:
+        - create_agent_ssh_key
+
+    - name: Создание директории под секреты
+      ansible.builtin.file:
+        path: "{{ teamcity_agent_secrets_dir }}"
+        state: directory
+        owner: teamcity-agent
+        group: teamcity-agent
+        mode: 0755
+      tags:
+        - copy_secrets
+
+    - name: Копирование ключей сервисных аккаунтов и kubeconfig
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: teamcity-agent
+        group: teamcity-agent
+        mode: '0600'
+      loop:
+        - { src: '.{{ registry_sa_key_filepath }}', dest: '{{ teamcity_agent_secrets_dir }}/registry_sa_key.json' }
+        - { src: '.{{ infrastructure_sa_key_filepath }}', dest: '{{ teamcity_agent_secrets_dir }}/infrastructure_sa_key.json' }
+        - { src: '.{{ infrastructure_sa_credentials_filepath }}', dest: '{{ teamcity_agent_secrets_dir }}/infrastructure_sa_credentials' }
+        - { src: '.{{ kubeconfig_filepath }}', dest: '{{ teamcity_agent_secrets_dir }}/kube_config' }
+        - { src: '.{{ demo_app_helm_values_filepath }}', dest: '{{ teamcity_agent_secrets_dir }}/notes_app_values.yaml' }
+      tags:
+        - copy_secrets
+
+  handlers:
+    - name: restart teamcity-agent
+      ansible.builtin.service:
+        name: teamcity-agent
+        state: restarted
