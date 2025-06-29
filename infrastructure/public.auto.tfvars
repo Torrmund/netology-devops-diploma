@@ -104,7 +104,7 @@ grafana_metadata = {
 
 postgresql_metadata = {
   name = "postgresql"
-  repository = "https://charts.bitnami.com/bitnami"
+  repository = "oci://registry-1.docker.io/bitnamicharts/"
   chart = "postgresql"
   version = "16.7.11"
   database = "notes-app"

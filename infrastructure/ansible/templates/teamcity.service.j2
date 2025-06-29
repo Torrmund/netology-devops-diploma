@@ -4,11 +4,16 @@ After=syslog.target network.target
 
 [Service]
 User=teamcity
-WorkingDirectory=/opt/TeamCity
-ExecStart=/opt/teamcity/TeamCity/bin/teamcity-server.sh start
-ExecStop=/opt/teamcity/TeamCity/bin/teamcity-server.sh stop
-Environment="TEAMCITY_DATA_PATH=/opt/TeamCity/TeamCityData"
-# Restart=always
+Group=teamcity
+Type=forking
+WorkingDirectory=/opt/teamcity/TeamCity
+ExecStart=/bin/bash /opt/teamcity/TeamCity/bin/teamcity-server.sh start
+ExecStop=/bin/bash /opt/teamcity/TeamCity/bin/teamcity-server.sh stop
+RemainAfterExit=yes
+Environment="/etc/default/teamcity-server"
+PrivateTmp=yes
+RestartSec=5
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target

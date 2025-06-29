@@ -44,6 +44,12 @@
         dest: "/opt/teamcity"
         remote_src: yes
 
+    - name: "Копирование параметров окружения"
+      ansible.builtin.template:
+        src: teamcity-server.j2
+        dest: /etc/default/teamcity-server
+        mode: 0644
+
     # - name: "Удаление временного архива"
     #   ansible.builtin.file:
     #     path: "/tmp/teamcity.tar.gz"
@@ -224,6 +230,7 @@
         name:
           - curl
           - unzip
+          - acl
         state: present
         update_cache: yes
 
@@ -245,6 +252,19 @@
       tags:
         - install_terraform
 
+    - name: Добавление файла .terraformrc
+      ansible.builtin.copy:
+        content: |
+          provider_installation {
+            network_mirror {
+              url = "https://registry.comcloud.xyz/ "
+            }
+          }
+        dest: "/opt/teamcity-agent/.terraformrc"
+        owner: teamcity-agent
+        group: teamcity-agent
+        mode: '0644'
+
     - name: Проверка установки Terraform
       ansible.builtin.command: terraform --version
       register: terraform_output
@@ -262,7 +282,7 @@
 
     - name: Скачивание kubectl
       ansible.builtin.get_url:
-        url: "https://dl.k8s.io/release/v{{  kubernetes_version }}.0/bin/linux/amd64/kubectl"
+        url: "https://dl.k8s.io/release/v{{ kubernetes_version }}.0/bin/linux/amd64/kubectl"
         dest: "/usr/local/bin/kubectl"
         mode: '0755'
       tags:
@@ -406,10 +426,13 @@
         path: "/opt/teamcity-agent/.ssh"
         state: directory
         mode: '0700'
+        owner: teamcity-agent
+        group: teamcity-agent
       tags:
         - create_agent_ssh_key
 
     - name: Создание SSH-ключа агента
+      become_user: teamcity-agent
       ansible.builtin.shell: |
         ssh-keygen -t ed25519 -f /opt/teamcity-agent/.ssh/id_ed25519 -N ''
         chmod 400 "/opt/teamcity-agent/.ssh/id_ed25519"
