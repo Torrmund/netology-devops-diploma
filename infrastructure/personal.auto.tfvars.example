@@ -2,6 +2,7 @@ cloud_id    = "<CLOUD_ID>"
 folder_id   = "<FOLDER_ID>"
 vms_ssh_key = "<PUBLIC_SSH_KEY>"
 service_account_key_filepath = "<PATH/TO/INFRASTRUCTURE/SERVICE/ACCOUNT/AUTHORIZED/KEY>"
+service_account_credentials_filepath = "<PATH/TO/INFRASTRUCTURE/SERVICE/ACCOUNT/CREDENTIALS/FILE>"
 
 postgresql_username = "<USERNAME>"
 postgresql_password = "<PASSWORD>"
