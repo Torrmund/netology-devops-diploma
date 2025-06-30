@@ -4,25 +4,29 @@
   become: yes
 
   vars:
+    teamcity_master_home: "/opt/teamcity"
+    teamcity_master_user: teamcity
+    teamcity_master_group: teamcity
 
   tasks:
     - name: "Установка OpenJDK"
       ansible.builtin.apt:
         name:
           - openjdk-21-jdk
+          - acl
         state: present
         update_cache: yes
 
     - name: "Создание группы teamcity"
       ansible.builtin.group:
-        name: "teamcity"
+        name: "{{ teamcity_master_group }}"
         state: present
         system: yes
 
     - name: "Создание пользователя teamcity"
       ansible.builtin.user:
-        name: "teamcity"
-        group: "teamcity"
+        name: "{{ teamcity_master_user }}"
+        group: "{{ teamcity_master_group }}"
         groups:
           - www-data
         append: yes
@@ -30,7 +34,7 @@
         shell: /bin/bash
         create_home: yes
         system: yes
-        home: /opt/teamcity
+        home: "{{ teamcity_master_home }}"
 
     - name: "Копирование архива дистрибутива"
       ansible.builtin.copy:
@@ -41,7 +45,7 @@
     - name: "Распаковка архива в домашнюю директорию пользователя teamcity"
       ansible.builtin.unarchive:
         src: "/tmp/teamcity.tar.gz"
-        dest: "/opt/teamcity"
+        dest: "{{ teamcity_master_home }}"
         remote_src: yes
 
     - name: "Копирование параметров окружения"
@@ -50,24 +54,19 @@
         dest: /etc/default/teamcity-server
         mode: 0644
 
-    # - name: "Удаление временного архива"
-    #   ansible.builtin.file:
-    #     path: "/tmp/teamcity.tar.gz"
-    #     state: absent
-
     - name: "Создание директории для данных"
       ansible.builtin.file:
-        path: /opt/teamcity/TeamCity/TeamCityData
+        path: "{{ teamcity_master_home }}/TeamCity/TeamCityData"
         state: directory
-        owner: teamcity
-        group: teamcity
+        owner: "{{ teamcity_master_user }}"
+        group: "{{ teamcity_master_group }}"
         mode: 0755
 
     - name: "Установка прав владельца на TeamCity директорию"
       ansible.builtin.file:
-        path: "/opt/teamcity"
-        owner: "teamcity"
-        group: "teamcity"
+        path: "{{ teamcity_master_home }}"
+        owner: "{{ teamcity_master_user }}"
+        group: "{{ teamcity_master_group }}"
         recurse: yes
 
     - name: "Добавление systemd юнита для TeamCity"
@@ -114,6 +113,41 @@
         state: absent
       notify: restart nginx
 
+    - name: Проверка налчия директории .ssh
+      ansible.builtin.file:
+        path: "{{ teamcity_master_home }}/.ssh"
+        state: directory
+        mode: '0700'
+        owner: "{{ teamcity_master_user }}"
+        group: "{{ teamcity_master_group }}"
+      tags:
+        - create_master_ssh_key
+
+    - name: Создание SSH-ключа агента
+      become_user: "{{ teamcity_master_user }}"
+      ansible.builtin.shell: |
+        ssh-keygen -t ed25519 -f {{ teamcity_master_home }}/.ssh/id_ed25519 -N ''
+        chmod 400 "{{ teamcity_master_home }}/.ssh/id_ed25519"
+      args:
+        creates: "{{ teamcity_master_home }}/.ssh/id_ed25519"
+      tags:
+        - create_master_ssh_key
+
+    - name: Получение публичной части ключа
+      ansible.builtin.slurp:
+        src: "{{ teamcity_master_home }}/.ssh/id_ed25519.pub"
+      register: public_ssh_key
+      tags:
+        - create_master_ssh_key
+        - show_public_ssh_keys
+
+    - name: Вывод публичной части ключа
+      ansible.builtin.debug:
+        msg: "TeamCity public ssh-key:\n{{ public_ssh_key.content | b64decode }}"
+      tags:
+        - create_master_ssh_key
+        - show_public_ssh_keys
+
   handlers:
     - name: reload systemd
       ansible.builtin.systemd:
@@ -130,11 +164,14 @@
         name: nginx
         state: restarted
 
-- name: "Установка агента"
+- name: "Установка агентов"
   hosts: teamcity_agents
   become: yes
 
   vars:
+    teamcity_agent_home: /opt/teamcity-agent
+    teamcity_agent_user: teamcity-agent
+    teamcity_agent_group: teamcity-agent
 
   tasks:
     - name: "Установка необходимых пакетов"
@@ -143,19 +180,20 @@
           - openjdk-21-jdk
           - curl
           - unzip
+          - acl
         state: present
         update_cache: yes
 
     - name: "Создание группы teamcity-agent"
       ansible.builtin.group:
-        name: "teamcity-agent"
+        name: "{{ teamcity_agent_group }}"
         state: present
         system: yes
 
     - name: "Создание пользователя teamcity-agent"
       ansible.builtin.user:
-        name: "teamcity-agent"
-        group: "teamcity-agent"
+        name: "{{ teamcity_agent_user }}"
+        group: "{{ teamcity_agent_group }}"
         groups:
           - www-data
         append: yes
@@ -163,7 +201,7 @@
         shell: /bin/bash
         create_home: yes
         system: yes
-        home: /opt/teamcity-agent
+        home: "{{ teamcity_agent_home }}"
 
     - name: "Скачивание дистрибутива агента с мастера"
       ansible.builtin.get_url:
@@ -175,25 +213,20 @@
     - name: "Распаковка дистрибутива агента"
       ansible.builtin.unarchive:
         src: "/tmp/agent.zip"
-        dest: "/opt/teamcity-agent"
+        dest: "{{ teamcity_agent_home }}"
         remote_src: yes
-
-    # - name: "Удаление временного архива"
-    #   ansible.builtin.file:
-    #     path: "/tmp/agent.zip"
-    #     state: absent
 
     - name: "Установка прав владельца на директория агента"
       ansible.builtin.file:
-        path: /opt/teamcity-agent
-        owner: teamcity-agent
-        group: teamcity-agent
+        path: "{{ teamcity_agent_home }}"
+        owner: "{{ teamcity_agent_user }}"
+        group: "{{ teamcity_agent_group }}"
         recurse: yes
 
     - name: "Добавление конфига buildAgent.properties"
       ansible.builtin.template:
         src: buildAgent.properties.j2
-        dest: "/opt/teamcity-agent/conf/buildAgent.properties"
+        dest: "{{ teamcity_agent_home }}/conf/buildAgent.properties"
       notify: reload systemd
 
     - name: "Добавление юнита systemd для агента"
@@ -208,9 +241,52 @@
 
     - name: "Запуск сервиса агента"
       ansible.builtin.service:
-        name: teamcity-agent
+        name: teamcity
         enabled: yes
         state: started
+
+    - name: Проверка налчия директории .ssh
+      ansible.builtin.file:
+        path: "{{ teamcity_agent_home }}/.ssh"
+        state: directory
+        mode: '0700'
+        owner: "{{ teamcity_agent_user }}"
+        group: "{{ teamcity_agent_group }}"
+      tags:
+        - create_agent_ssh_key
+
+    - name: Создание SSH-ключа агента
+      become_user: "{{ teamcity_agent_user }}"
+      ansible.builtin.shell: |
+        ssh-keygen -t ed25519 -f {{ teamcity_agent_home }}/.ssh/id_ed25519 -N ''
+        chmod 400 "{{ teamcity_agent_home }}/.ssh/id_ed25519"
+      args:
+        creates: "{{ teamcity_agent_home }}/.ssh/id_ed25519"
+      tags:
+        - create_agent_ssh_key
+
+    - name: Получение публичной части ключа
+      ansible.builtin.slurp:
+        src: "{{ teamcity_agent_home }}/.ssh/id_ed25519.pub"
+      register: public_ssh_key
+      tags:
+        - create_agent_ssh_key
+        - show_public_ssh_keys
+
+    - name: Вывод публичной части ключа
+      ansible.builtin.debug:
+        msg: "TeamCity public ssh-key:\n{{ public_ssh_key.content | b64decode }}"
+      tags:
+        - create_agent_ssh_key
+        - show_public_ssh_keys
+
+    - name: Добавление конфига SSH на агент
+      ansible.builtin.template:
+        src: agents_ssh_config.j2
+        dest: "{{ teamcity_agent_home }}/.ssh/config"
+        owner: "{{ teamcity_agent_user }}"
+        group: "{{ teamcity_agent_group }}"
+        mode: 0600
 
   handlers:
     - name: reload systemd
@@ -222,7 +298,10 @@
   become: yes
 
   vars:
-    teamcity_agent_secrets_dir: /opt/teamcity-agent/secrets
+    teamcity_agent_home: /opt/teamcity-agent
+    teamcity_agent_secrets_dir: "{{ teamcity_agent_home }}/secrets"
+    teamcity_agent_user: teamcity-agent
+    teamcity_agent_group: teamcity-agent
 
   tasks:
     - name: "Установка необходимых пакетов"
@@ -230,7 +309,6 @@
         name:
           - curl
           - unzip
-          - acl
         state: present
         update_cache: yes
 
@@ -260,9 +338,9 @@
               url = "https://registry.comcloud.xyz/ "
             }
           }
-        dest: "/opt/teamcity-agent/.terraformrc"
-        owner: teamcity-agent
-        group: teamcity-agent
+        dest: "{{ teamcity_agent_home }}/.terraformrc"
+        owner: "{{ teamcity_agent_user }}"
+        group: "{{ teamcity_agent_group }}"
         mode: '0644'
 
     - name: Проверка установки Terraform
@@ -404,7 +482,7 @@
     - name: Проверка, существует ли пользователь teamcity-agent
       ansible.builtin.getent:
         database: passwd
-        key: teamcity-agent
+        key: "{{ teamcity_agent_user }}"
       register: getend_passwd
       changed_when: false
       tags:
@@ -412,7 +490,7 @@
 
     - name: Добавление пользователя teamcity-agent в группу Docker
       ansible.builtin.user:
-        name: teamcity-agent
+        name: "{{ teamcity_agent_user }}"
         groups: 
           - docker
         append: yes
@@ -421,45 +499,12 @@
       tags:
         - install_docker
 
-    - name: Проверка налчия директории .ssh
-      ansible.builtin.file:
-        path: "/opt/teamcity-agent/.ssh"
-        state: directory
-        mode: '0700'
-        owner: teamcity-agent
-        group: teamcity-agent
-      tags:
-        - create_agent_ssh_key
-
-    - name: Создание SSH-ключа агента
-      become_user: teamcity-agent
-      ansible.builtin.shell: |
-        ssh-keygen -t ed25519 -f /opt/teamcity-agent/.ssh/id_ed25519 -N ''
-        chmod 400 "/opt/teamcity-agent/.ssh/id_ed25519"
-      args:
-        creates: "/opt/teamcity-agent/.ssh/id_ed25519"
-      tags:
-        - create_agent_ssh_key
-
-    - name: Получение публичной части ключа
-      ansible.builtin.slurp:
-        src: "/opt/teamcity-agent/.ssh/id_ed25519.pub"
-      register: public_ssh_key
-      tags:
-        - create_agent_ssh_key
-
-    - name: Вывод публичной части ключа
-      ansible.builtin.debug:
-        msg: "TeamCity public ssh-key:\n{{ public_ssh_key.content | b64decode }}"
-      tags:
-        - create_agent_ssh_key
-
     - name: Создание директории под секреты
       ansible.builtin.file:
         path: "{{ teamcity_agent_secrets_dir }}"
         state: directory
-        owner: teamcity-agent
-        group: teamcity-agent
+        owner: "{{ teamcity_agent_user }}"
+        group: "{{ teamcity_agent_group }}"
         mode: 0755
       tags:
         - copy_secrets
@@ -468,8 +513,8 @@
       copy:
         src: "{{ item.src }}"
         dest: "{{ item.dest }}"
-        owner: teamcity-agent
-        group: teamcity-agent
+        owner: "{{ teamcity_agent_user }}"
+        group: "{{ teamcity_agent_group }}"
         mode: '0600'
       loop:
         - { src: '.{{ registry_sa_key_filepath }}', dest: '{{ teamcity_agent_secrets_dir }}/registry_sa_key.json' }

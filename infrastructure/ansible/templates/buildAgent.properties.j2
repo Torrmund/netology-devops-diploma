@@ -1,5 +1,5 @@
 serverUrl=http://{{ teamcity_server_domain }}
 name={{ ansible_fqdn }}
-workDir=/opt/teamcity-agent/work
-pluginsDir=/opt/teamcity-agent/plugins
-systemDir=/opt/teamcity-agent/system
+workDir={{ teamcity_agent_home }}/work
+pluginsDir={{ teamcity_agent_home }}/plugins
+systemDir={{ teamcity_agent_home }}/system

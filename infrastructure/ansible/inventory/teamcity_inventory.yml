@@ -3,7 +3,7 @@ all:
     teamcity_master:
       hosts:
         teamcity-master-vm:
-          ansible_host: 89.169.157.236
+          ansible_host: 89.169.131.84
           ansible_user: ubuntu
           ansible_ssh_private_key_file: ~/.ssh/id_ed25519
           ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
@@ -16,7 +16,7 @@ all:
     teamcity_agents:
       hosts:
         teamcity-agent-1:
-          ansible_host: 89.169.130.116
+          ansible_host: 51.250.73.113
 
 
       vars:

@@ -3,12 +3,16 @@ Description=TeamCity Build Agent
 After=network.target
 
 [Service]
+Type=oneshot
 User=teamcity-agent
+Group=teamcity-agent
 WorkingDirectory=/opt/teamcity-agent
-ExecStart=/opt/teamcity-agent/bin/agent.sh run
+ExecStart=/opt/teamcity-agent/bin/agent.sh start
 ExecStop=/opt/teamcity-agent/bin/agent.sh stop
 # Restart=always
 Environment="JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64"
+RemainAfterExit=yes
+SuccessExitStatus=0 143
 
 [Install]
 WantedBy=multi-user.target
