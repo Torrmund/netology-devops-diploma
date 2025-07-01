@@ -29,3 +29,11 @@ resource "yandex_dns_recordset" "teamcity" {
   ttl = 300
   data = [ yandex_compute_instance.teamcity_master.network_interface[0].nat_ip_address ]
 }
+
+resource "yandex_dns_recordset" "teamcity_agent_1" {
+  zone_id = yandex_dns_zone.infrastructure_dns_zone.id
+  name = "teamcity-agent-1"
+  type = "A"
+  ttl = 300
+  data = [ yandex_compute_instance.teamcity_agents[0].network_interface[0].nat_ip_address ]
+}
