@@ -1,0 +1,13 @@
+namespase: notes-app
+
+replicaCount: 3
+
+image:
+  repository: cr.yandex/crpn04ug2e4chnpqren8/notes-app
+
+ingress:
+  host: notes.torrmund.xyz
+
+database:
+  host: postgresql
+  name: notes-app

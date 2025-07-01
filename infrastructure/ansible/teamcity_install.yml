@@ -241,7 +241,7 @@
 
     - name: "Запуск сервиса агента"
       ansible.builtin.service:
-        name: teamcity
+        name: teamcity-agent
         enabled: yes
         state: started
 
